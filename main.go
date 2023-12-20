@@ -2,26 +2,52 @@ package main
 
 import (
 	"fmt"
-	"example/dictionnaire/dictionary" 
+	"goprojet/dictionnaire/dictionary"
 )
 
 func main() {
-	dictionary := make(dictionary.Dictionary)
+	dict := dictionary.NewDictionary("dictionary.txt")
 
-	dictionary.Add("estiam", "école.")
-	dictionary.Add("Chaimae", "Prénom.")
-	dictionary.Add("shaddow", "chat.")
+	err := dict.Add("chaimae", "Prénom")
+	if err != nil {
+		fmt.Println("Erreur lors de l'ajout :", err)
+	}
 
-	wordToGet := "go"
-	fmt.Printf("Definition of %s: %s\n", wordToGet, dictionary.Get(wordToGet))
+	err = dict.Add("chat", "animal")
+	if err != nil {
+		fmt.Println("Erreur lors de l'ajout :", err)
+	}
 
-	wordToRemove := "Estiam" 
-	fmt.Printf("Removing %s from the dictionary.\n", wordToRemove)
-	dictionary.Remove(wordToRemove)
+	err = dict.Add("estiam", "école")
+	if err != nil {
+		fmt.Println("Erreur lors de l'ajout :", err)
+	}
+
+	
+	wordToGet := "estiam"
+	definition, err := dict.Get(wordToGet)
+	if err != nil {
+		fmt.Println("Erreur lors de la récupération :", err)
+	} else {
+		fmt.Printf("Definition of %s: %s\n", wordToGet, definition)
+	}
+
+	
+	wordToRemove := "chaimae" 
+	err = dict.Remove(wordToRemove)
+	if err != nil {
+		fmt.Println("Erreur lors de la suppression :", err)
+	} else {
+		fmt.Printf("Mot %s supprimé du dictionnaire.\n", wordToRemove)
+	}
 
 	fmt.Println("\nDictionary entries:")
-	entries := dictionary.List()
-	for _, entry := range entries {
-		fmt.Println(entry)
+	entries, err := dict.List()
+	if err != nil {
+		fmt.Println("Erreur lors de la récupération de la liste :", err)
+	} else {
+		for _, entry := range entries {
+			fmt.Println(entry)
+		}
 	}
 }
