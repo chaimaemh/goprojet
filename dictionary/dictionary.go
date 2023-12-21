@@ -15,6 +15,14 @@ type Dictionary struct {
 	mu       sync.Mutex
 }
 
+
+
+type Entry struct {
+	Word       string `json:"word"`
+	Definition string `json:"definition"`
+}
+
+
 type entryOperation struct {
 	word       string
 	definition string

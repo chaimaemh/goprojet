@@ -2,38 +2,25 @@ package main
 
 import (
 	"fmt"
-	"goprojet/dictionnaire/dictionary"
-	"sync"
+	"net/http"
+	"goprojet/dictionnaire/handlers" 
 )
 
 func main() {
-	dict := dictionary.NewDictionary("dictionary.txt")
-	var wg sync.WaitGroup
+	// Créez un routeur pour gérer les différentes routes.
+	mux := http.NewServeMux()
 
-	wg.Add(2)
+	// Associez les gestionnaires aux routes.
+	mux.HandleFunc("/add", handlers.AddHandler)
+	mux.HandleFunc("/get/", handlers.GetHandler)
+	mux.HandleFunc("/remove/", handlers.RemoveHandler)
+	mux.HandleFunc("/list", handlers.ListHandler)
 
-	go func() {
-		defer wg.Done()
-		dict.Add("estiam", "école.")
-		dict.Add("chat", "An animal.")
-		dict.Add("Air france", "Entreprise.")
-	}()
-
-	go func() {
-		defer wg.Done()
-		dict.Remove("chaimae")
-		dict.Remove("go")
-	}()
-
-	wg.Wait()
-
-	fmt.Println("\nDictionary entries:")
-	entries, err := dict.List()
+	// Démarrez le serveur HTTP sur le port 8080.
+	port := 8080
+	fmt.Printf("Serveur démarré sur le port %d...\n", port)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", port), mux)
 	if err != nil {
-		fmt.Println("Erreur lors de la récupération de la liste :", err)
-	} else {
-		for _, entry := range entries {
-			fmt.Println(entry)
-		}
+		fmt.Println("Erreur lors du démarrage du serveur :", err)
 	}
 }
