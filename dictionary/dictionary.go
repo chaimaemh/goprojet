@@ -4,65 +4,77 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
+	"sync"
 )
 
 type Dictionary struct {
 	filePath string
+	addCh    chan entryOperation
+	removeCh chan string
+	mu       sync.Mutex
+}
+
+type entryOperation struct {
+	word       string
+	definition string
 }
 
 func NewDictionary(filePath string) *Dictionary {
-	return &Dictionary{filePath: filePath}
+	dict := &Dictionary{
+		filePath: filePath,
+		addCh:    make(chan entryOperation),
+		removeCh: make(chan string),
+	}
+
+	go dict.handleOperations()
+
+	return dict
 }
 
-func (d *Dictionary) Add(word, definition string) error {
+func (d *Dictionary) handleOperations() {
+	for {
+		select {
+		case operation := <-d.addCh:
+			d.handleAdd(operation.word, operation.definition)
+		case word := <-d.removeCh:
+			d.handleRemove(word)
+		}
+	}
+}
+
+func (d *Dictionary) handleAdd(word, definition string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	existingDef, err := d.Get(word)
 	if err == nil {
-		return fmt.Errorf("Le mot '%s' existe déjà avec la définition : %s", word, existingDef)
+		fmt.Printf("Le mot '%s' existe déjà avec la définition : %s\n", word, existingDef)
+		return
 	}
 
 	entry := fmt.Sprintf("%s:%s\n", word, definition)
 	file, err := os.OpenFile(d.filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
-		return err
+		fmt.Printf("Erreur lors de l'ouverture du fichier : %v\n", err)
+		return
 	}
 	defer file.Close()
 
 	_, err = file.WriteString(entry)
 	if err != nil {
-		return err
+		fmt.Printf("Erreur lors de l'écriture dans le fichier : %v\n", err)
 	}
-
-	return nil
 }
 
+func (d *Dictionary) handleRemove(word string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
-
-func (d *Dictionary) Get(word string) (string, error) {
-	file, err := os.Open(d.filePath)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) == 2 && parts[0] == word {
-			return parts[1], nil
-		}
-	}
-
-	return "", fmt.Errorf("Mot non trouvé : %s", word)
-}
-
-
-func (d *Dictionary) Remove(word string) error {
 	lines, err := readLines(d.filePath)
 	if err != nil {
-		return err
+		fmt.Printf("Erreur lors de la lecture du fichier : %v\n", err)
+		return
 	}
 
 	var newLines []string
@@ -77,22 +89,33 @@ func (d *Dictionary) Remove(word string) error {
 	}
 
 	if !found {
-		return fmt.Errorf("Mot non trouvé : %s", word)
+		fmt.Printf("Mot non trouvé : %s\n", word)
+		return
 	}
 
-	return writeLines(d.filePath, newLines)
+	err = writeLines(d.filePath, newLines)
+	if err != nil {
+		fmt.Printf("Erreur lors de l'écriture dans le fichier : %v\n", err)
+	}
 }
 
-
-func (d *Dictionary) List() ([]string, error) {
+func (d *Dictionary) Get(word string) (string, error) {
 	lines, err := readLines(d.filePath)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	sort.Strings(lines)
-	return lines, nil
+	for _, line := range lines {
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) == 2 && parts[0] == word {
+			return parts[1], nil
+		}
+	}
+
+	return "", fmt.Errorf("Mot non trouvé : %s", word)
 }
+
+// readLines et writeLines sont des fonctions auxiliaires pour la lecture et l'écriture de lignes dans le fichier.
 
 func readLines(filePath string) ([]string, error) {
 	file, err := os.Open(filePath)
@@ -107,9 +130,25 @@ func readLines(filePath string) ([]string, error) {
 		lines = append(lines, scanner.Text())
 	}
 
-	return lines, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return lines, nil
+}
+func (d *Dictionary) Add(word, definition string) {
+	d.addCh <- entryOperation{word, definition}
 }
 
+// Remove supprime un mot du dictionnaire.
+func (d *Dictionary) Remove(word string) {
+	d.removeCh <- word
+}
+
+// List retourne une liste triée des mots et de leurs définitions.
+func (d *Dictionary) List() ([]string, error) {
+	return readLines(d.filePath)
+}
 func writeLines(filePath string, lines []string) error {
 	file, err := os.Create(filePath)
 	if err != nil {
